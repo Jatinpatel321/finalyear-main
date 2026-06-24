@@ -1,7 +1,10 @@
+import logging
 from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger("tnt.orders.checkout")
 
 from app.core.db_transaction import transactional
 from app.core.faculty_policy import is_slot_in_faculty_priority_window
@@ -136,6 +139,18 @@ def checkout_order_for_user(
 
     # Decrement stock: deduct inventory & auto-disable when exhausted
     _deduct_inventory_for_order(item_quantities, db)
+
+    # ── Automated fraud detection ──────────────────────────────────────
+    from app.modules.fraud.fraud_rules import run_fraud_checks
+    from app.core.time_utils import utcnow_naive as _utcnow
+
+    fraud_reason = run_fraud_checks(order, db)
+    if fraud_reason:
+        order.fraud_flag = True
+        order.fraud_reason = fraud_reason
+        order.flagged_at = _utcnow()
+        logger.info("auto_fraud_flag order_id=%s reason=%s", order.id, fraud_reason)
+    # ───────────────────────────────────────────────────────────────────
 
     congestion_factor = slot.congestion_level if hasattr(slot, "congestion_level") else 0
 

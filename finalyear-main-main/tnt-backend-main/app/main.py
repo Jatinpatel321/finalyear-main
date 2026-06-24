@@ -18,37 +18,10 @@ from app.core.startup_checks import validate_production_settings, verify_databas
 from app.database.init_db import init_db
 from app.database.session import engine
 from app.api.v1 import api_v1_router
-from app.modules.admin.router import router as admin_router
-from app.modules.ai_intelligence.router import router as ai_router
-from app.modules.auth.router import router as auth_router
-from app.modules.cart.router import checkout_router, router as cart_router
+from app.modules.orders.lifecycle_simulator import order_lifecycle_simulator
 
 from fastapi import Response
 from starlette.requests import Request
-
-from app.modules.complaints.router import router as complaints_router
-from app.modules.feedback.router import router as feedback_router
-from app.modules.group_cart.router import router as group_cart_router
-from app.modules.ledger.router import router as ledger_router
-from app.modules.menu.router import router as menu_router
-from app.modules.notifications.router import router as notification_router
-from app.modules.orders.router import router as orders_router
-from app.modules.payments.router import router as payments_router
-from app.modules.payments.webhook import router as razorpay_webhook_router
-from app.modules.rewards.router import router as rewards_router
-from app.modules.orders.lifecycle_simulator import order_lifecycle_simulator
-from app.modules.slots.router import router as slots_router
-from app.modules.stationery.payment_router import router as stationery_payment_router
-from app.modules.stationery.router import router as stationery_router
-from app.modules.users.router import router as users_router
-from app.modules.users.profile_router import router as profile_router
-from app.modules.vendors.router import router as vendors_router
-from app.modules.vendors.auth_router import router as vendor_auth_router
-from app.modules.orders.ws_router import router as orders_ws_router
-from app.modules.orders.vendor_ws_router import router as vendor_ws_router
-from app.modules.recommendations.router import router as recommendations_router
-from app.modules.search.router import router as search_router
-from app.ml.router import router as ml_router
 
 
 @asynccontextmanager
@@ -260,39 +233,5 @@ def metrics(user=Depends(require_role("admin"))) -> dict[str, Any]:
 # All domain routers live under /v1/<domain>/... via the aggregator.
 app.include_router(api_v1_router)
 
-# ── Legacy (un-prefixed) routes — DEPRECATED, kept for backward-compat ───
-# These will be removed once the frontend has migrated to /v1.
-# ``deprecated=True`` in include_router surfaces a deprecation notice in the
-# OpenAPI docs for each legacy route.
-app.include_router(auth_router, deprecated=True)
-app.include_router(users_router, deprecated=True)
-app.include_router(profile_router, deprecated=True)
-app.include_router(slots_router, deprecated=True)
-app.include_router(orders_router, deprecated=True)
-app.include_router(payments_router, deprecated=True)
-app.include_router(razorpay_webhook_router, deprecated=True)
+# ── Static file mount (not versioned) ────────────────────────────────────
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-app.include_router(admin_router, deprecated=True)
-app.include_router(stationery_router, deprecated=True)
-app.include_router(stationery_payment_router, deprecated=True)
-app.include_router(notification_router, deprecated=True)
-app.include_router(rewards_router, deprecated=True)
-app.include_router(group_cart_router, deprecated=True)
-app.include_router(ai_router, deprecated=True)
-app.include_router(menu_router, deprecated=True)
-app.include_router(vendors_router, deprecated=True)
-app.include_router(vendor_auth_router)
-app.include_router(ledger_router, deprecated=True)
-app.include_router(feedback_router, deprecated=True)
-app.include_router(complaints_router, deprecated=True)
-app.include_router(cart_router, deprecated=True)
-app.include_router(checkout_router, deprecated=True)
-app.include_router(recommendations_router, deprecated=True)
-app.include_router(search_router, deprecated=True)
-
-# ── ML-powered AI Analytics Dashboard ───────────────────────────────────────
-app.include_router(ml_router)
-
-# 🔌 WebSocket — real-time order tracking + vendor dashboard (protocol-level upgrade, not versioned)
-app.include_router(orders_ws_router)
-app.include_router(vendor_ws_router)

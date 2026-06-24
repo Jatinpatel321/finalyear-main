@@ -28,6 +28,16 @@ class OrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StationeryJobSummary(BaseModel):
+    id: int
+    service_id: int
+    quantity: int
+    amount: int
+    status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderResponse(BaseModel):
     id: int
     user_id: Optional[int] = None
@@ -41,5 +51,9 @@ class OrderResponse(BaseModel):
     items: Optional[list[OrderItemResponse]] = None
     eta_minutes: Optional[int] = None
     is_delayed: Optional[bool] = None
+    booking_type: Optional[str] = "food"
+    stationery_jobs: Optional[list[StationeryJobSummary]] = None
+    fraud_flag: Optional[bool] = None
+    fraud_reason: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

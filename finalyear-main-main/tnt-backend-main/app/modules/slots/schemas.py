@@ -17,6 +17,12 @@ class BookingStatus(str, Enum):
     cancelled = "cancelled"
 
 
+class BookingType(str, Enum):
+    food = "food"
+    stationery = "stationery"
+    combined = "combined"
+
+
 class SlotCreate(BaseModel):
     start_time: datetime
     end_time: datetime
@@ -72,6 +78,7 @@ class SlotBookingResponse(BaseModel):
     slot_id: int
     user_id: int
     order_id: Optional[int] = None
+    booking_type: BookingType = BookingType.food
     status: BookingStatus
     booked_at: Optional[datetime] = None
     cancelled_at: Optional[datetime] = None
@@ -187,3 +194,42 @@ class SlotAnalyticsResponse(BaseModel):
     avg_utilization: float
     peak_hour_slots: int
     faculty_priority_slots: int
+
+
+# ── Combined Booking Schemas ──────────────────────────────────────────────
+
+
+class CombinedStationeryItem(BaseModel):
+    service_id: int
+    quantity: int
+    file_url: Optional[str] = None
+
+
+class CombinedFoodItem(BaseModel):
+    menu_item_id: int
+    quantity: int
+
+
+class CombinedBookingRequest(BaseModel):
+    """Payload for POST /slots/combined-booking.
+
+    Books food items AND a stationery job against the SAME slot window.
+    """
+    slot_id: int
+    food_items: List[CombinedFoodItem] = []
+    stationery_items: List[CombinedStationeryItem] = []
+
+
+class CombinedBookingResponse(BaseModel):
+    """Response for a successful combined booking.
+
+    Returns the order ID (which covers the food items) and the stationery
+    job ID so the frontend can route to payment for both.
+    """
+    message: str
+    order_id: int
+    stationery_job_ids: List[int]
+    slot_id: int
+    booking_id: int
+    total_amount: int
+    status: str

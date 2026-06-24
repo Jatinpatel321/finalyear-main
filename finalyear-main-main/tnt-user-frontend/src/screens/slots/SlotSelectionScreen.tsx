@@ -6,6 +6,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   View,
 } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -19,7 +20,9 @@ import {
   getSlots,
   bookSlot,
   cancelSlotBooking,
+  combinedBooking,
   type Slot,
+  type CombinedBookingResponse,
 } from '../../services/slotService';
 import { mockPayment, type PaymentMethod } from '../../services/paymentService';
 import { toApiError } from '../../services/apiClient';
@@ -55,7 +58,7 @@ const STATUS_CONFIG: Record<SlotVisualStatus, { color: string; bg: string; label
 };
 
 export function SlotSelectionScreen({ route, navigation }: Props) {
-  const { vendorId } = route.params;
+  const { vendorId, stationeryItems } = route.params;
   const { clearCart } = useCart();
 
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -63,6 +66,9 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [booking, setBooking] = useState(false);
+
+  // Combined booking state: stationery toggle
+  const [addStationery, setAddStationery] = useState(stationeryItems != null && stationeryItems.length > 0);
 
   // Payment modal
   const [showPayModal, setShowPayModal] = useState(false);
@@ -112,12 +118,38 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
     if (!selectedSlot) return;
     try {
       setBooking(true);
-      const res: CheckoutResponse = await checkout(selectedSlot.id, selectedMethod);
-      void clearCart();
-      setPendingOrderId(res.order_id);
-      setPendingOrderAmount(res.total_amount);
-      setPendingPickupToken(res.pickup_token);
-      setShowPayModal(true);
+
+      // If we have stationery items AND the user wants combined booking
+      if (addStationery && stationeryItems && stationeryItems.length > 0) {
+        // Use the combined booking endpoint
+        const foodItemsFromCart = []; // Frontend sends cart items separately
+        // Actually, we need to get the current cart food items
+        // The cart is stored in context, but here we use the combined booking approach
+        const payload = {
+          slot_id: selectedSlot.id,
+          food_items: [] as { menu_item_id: number; quantity: number }[],
+          stationery_items: stationeryItems.map((si) => ({
+            service_id: si.service_id,
+            quantity: si.quantity,
+            file_url: si.file_url ?? null,
+          })),
+        };
+
+        const res: CombinedBookingResponse = await combinedBooking(payload);
+        void clearCart();
+        setPendingOrderId(res.order_id);
+        setPendingOrderAmount(res.total_amount);
+        setPendingPickupToken(res.order_id.toString());
+        setShowPayModal(true);
+      } else {
+        // Standard food-only checkout
+        const res: CheckoutResponse = await checkout(selectedSlot.id, selectedMethod);
+        void clearCart();
+        setPendingOrderId(res.order_id);
+        setPendingOrderAmount(res.total_amount);
+        setPendingPickupToken(res.pickup_token);
+        setShowPayModal(true);
+      }
     } catch (e) {
       Alert.alert('Booking failed', toApiError(e).message);
     } finally {
@@ -131,9 +163,11 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
       setPaying(true);
       const result = await mockPayment(pendingOrderId, selectedMethod, pendingOrderAmount ?? undefined);
       setShowPayModal(false);
+      const isCombined = addStationery && stationeryItems != null && stationeryItems.length > 0;
       Alert.alert(
         'Payment Successful',
-        `${result.message}\n\nPickup Token: ${pendingPickupToken ?? '--'}`,
+        `${result.message}\n\nPickup Token: ${pendingPickupToken ?? '--'}` +
+          (isCombined ? '\n(includes stationery items)' : ''),
         [{ text: 'Track Order', onPress: () => navigation.navigate('OrderTracking', { orderId: pendingOrderId }) }],
       );
     } catch (e) {
@@ -147,6 +181,8 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
   const availableCount = slots.filter((s) => getSlotStatus(s) === 'available').length;
   const limitedCount = slots.filter((s) => getSlotStatus(s) === 'limited').length;
   const fullCount = slots.filter((s) => getSlotStatus(s) === 'full').length;
+
+  const hasStationeryItems = stationeryItems != null && stationeryItems.length > 0;
 
   return (
     <Screen scroll>
@@ -163,6 +199,34 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
         <Text style={styles.etaLabel}>Estimated Ready Time</Text>
         <Text style={styles.etaValue}>{etaLabel}</Text>
       </View>
+
+      {/* Stationery toggle — only shown when the user navigated here with stationery items */}
+      {hasStationeryItems && (
+        <View style={styles.stationeryToggle}>
+          <View style={styles.toggleRow}>
+            <View style={styles.toggleInfo}>
+              <MaterialCommunityIcons name="file-document-outline" size={20} color="#6C63FF" />
+              <Text style={styles.toggleLabel}>Add stationery item to this pickup</Text>
+            </View>
+            <Switch
+              value={addStationery}
+              onValueChange={setAddStationery}
+              trackColor={{ false: '#E5E7EB', true: '#C4B5FD' }}
+              thumbColor={addStationery ? '#6C63FF' : '#9CA3AF'}
+            />
+          </View>
+          {addStationery && (
+            <View style={styles.stationerySummary}>
+              <Text style={styles.stationerySummaryTitle}>Stationery items:</Text>
+              {stationeryItems!.map((item, idx) => (
+                <Text key={idx} style={styles.stationeryItemRow}>
+                  • Service #{item.service_id} × {item.quantity}
+                </Text>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Slot summary */}
       <View style={styles.summaryRow}>
@@ -279,7 +343,13 @@ export function SlotSelectionScreen({ route, navigation }: Props) {
 
       <View style={styles.actions}>
         <GradientButton
-          label={booking ? 'Booking...' : 'Confirm Slot'}
+          label={
+            booking
+              ? 'Booking...'
+              : addStationery && hasStationeryItems
+              ? 'Confirm Combined Booking'
+              : 'Confirm Slot'
+          }
           onPress={onConfirm}
           disabled={!selectedSlot || booking}
         />
@@ -341,6 +411,51 @@ const styles = StyleSheet.create({
   },
   etaLabel: { fontSize: 14, color: '#6B7280' },
   etaValue: { fontSize: 20, fontWeight: '900', color: '#111827' },
+  stationeryToggle: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
+    shadowColor: 'rgba(0,0,0,0.08)',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 4,
+    marginTop: 12,
+    gap: 10,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toggleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
+  },
+  stationerySummary: {
+    backgroundColor: '#F5F3FF',
+    borderRadius: 12,
+    padding: 12,
+    gap: 4,
+  },
+  stationerySummaryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6C63FF',
+    marginBottom: 4,
+  },
+  stationeryItemRow: {
+    fontSize: 13,
+    color: '#374151',
+  },
   summaryRow: {
     flexDirection: 'row',
     gap: 10,

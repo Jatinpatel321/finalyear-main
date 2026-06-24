@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Store, ShoppingBag, MessageSquareWarning,
   Gift, Printer, Brain, BookOpen, Megaphone, Shield, Settings,
-  ChevronLeft, ChevronRight, Zap, Activity, ClipboardList, Siren,
+  ChevronLeft, ChevronRight, Zap, Activity, ClipboardList, Siren, Database,
 } from 'lucide-react';
 import logo from '../../assets/TAP N TAKE_page-0001 (1).jpg';
 import { useUIStore } from '../../store/uiStore';
@@ -25,6 +25,7 @@ const navItems = [
   { path: '/announcements', label: 'Announcements', icon: Megaphone },
   { path: '/audit-logs', label: 'Audit Logs', icon: ClipboardList },
   { path: '/conflicts', label: 'Conflicts', icon: Siren },
+  { path: '/backup', label: 'Backup', icon: Database },
   { path: '/policies', label: 'Policies', icon: Shield },
   { path: '/settings', label: 'Settings', icon: Settings },
 ];

@@ -1,6 +1,7 @@
 """Database initialisation — imports every model so SQLAlchemy metadata is built."""
 import app.modules.group_cart.model  # noqa
 import app.modules.feedback.model  # noqa
+import app.modules.admin.broadcast_model  # noqa
 import app.modules.complaints.model  # noqa
 import app.modules.ledger.model  # noqa
 import app.modules.menu.model  # noqa

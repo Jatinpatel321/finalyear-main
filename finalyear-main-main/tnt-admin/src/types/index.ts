@@ -48,6 +48,7 @@ export interface Order {
   status: OrderStatus;
   total_amount: number;
   fraud_flag: boolean;
+  fraud_reason?: string;
   created_at: string;
   items: OrderItem[];
   user_name?: string;

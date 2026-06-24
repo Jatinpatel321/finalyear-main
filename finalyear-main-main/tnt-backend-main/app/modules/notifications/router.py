@@ -65,12 +65,20 @@ def notify_delay(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # Resolve the order's student user for phone
+    student = db.query(User).filter(User.id == order.user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Order user not found")
+
     try:
         send_notification(
             user_id=order.user_id,
+            phone=student.phone,
             title="Order Delay",
             message=f"Your order #{order_id} is delayed by {delay_minutes} minutes. {reason}",
-            notification_type="delay_alert",
+            db=db,
+            send_sms_flag=True,
+            notification_type=NotificationType.DELAY_ALERT,
             reference_id=order_id,
         )
         return {"message": "Delay notification sent", "order_id": order_id}
@@ -93,12 +101,20 @@ def notify_ready(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # Resolve the order's student user for phone
+    student = db.query(User).filter(User.id == order.user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Order user not found")
+
     try:
         send_notification(
             user_id=order.user_id,
+            phone=student.phone,
             title="Order Ready for Pickup!",
             message=f"Your order #{order_id} is ready. Please collect it from the pickup counter.",
-            notification_type="order_ready",
+            db=db,
+            send_sms_flag=True,
+            notification_type=NotificationType.ORDER_READY,
             reference_id=order_id,
         )
         return {"message": "Ready notification sent", "order_id": order_id}
@@ -122,12 +138,20 @@ def notify_custom(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
+    # Resolve the order's student user for phone
+    student = db.query(User).filter(User.id == order.user_id).first()
+    if not student:
+        raise HTTPException(status_code=404, detail="Order user not found")
+
     try:
         send_notification(
             user_id=order.user_id,
+            phone=student.phone,
             title="Message from Vendor",
             message=message,
-            notification_type="system",
+            db=db,
+            send_sms_flag=False,
+            notification_type=NotificationType.SYSTEM,
             reference_id=order_id,
         )
         return {"message": "Custom notification sent", "order_id": order_id}

@@ -7,11 +7,14 @@ from fastapi import HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from datetime import date as date_type
+
 from app.core.faculty_policy import is_slot_in_faculty_priority_window
 from app.core.time_utils import ist_now, utcnow_naive
 from app.modules.orders.model import Order
 
 from app.core.redis import redis_client
+from app.modules.calendar.model import CalendarEvent
 from app.modules.slots.model import Slot, SlotBooking, SlotStatus, BookingStatus, SlotCapacityRule, SlotRule
 from app.modules.users.model import User
 
@@ -189,6 +192,43 @@ def _update_slot_status(slot: Slot) -> None:
     slot.congestion_level = utilization * 100
 
 
+def _check_calendar_event_restrictions(slot: Slot, user_id: int, db: Session) -> None:
+    """Check if the slot's date is blocked or restricted by a calendar event.
+
+    - Holiday (affects_ordering=True): block all new bookings.
+    - Exam Day (affects_ordering=True): allow only faculty/admin roles.
+    Raises HTTPException if the booking is not allowed.
+    """
+    slot_date = slot.start_time.date()
+    event = db.query(CalendarEvent).filter(
+        CalendarEvent.event_date == slot_date,
+        CalendarEvent.affects_ordering == True,
+    ).first()
+    if not event:
+        return
+
+    if event.event_type == "holiday":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ordering is closed on {slot_date.isoformat()} ({event.label} — Holiday). "
+                   f"No bookings are allowed on this date.",
+        )
+
+    if event.event_type == "exam_day":
+        # Only faculty/admin/super_admin can book on exam days
+        user = db.query(User).filter(User.id == user_id).first()
+        role = (user.role.value if user and hasattr(user.role, 'value') else '').lower() if user else ''
+        if role not in {"faculty", "admin", "super_admin"}:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Slot on {slot_date.isoformat()} is reserved for faculty/staff "
+                       f"({event.label} — Exam Day). Student bookings are not allowed.",
+            )
+        # Faculty can book — reduce max_orders by half to prioritise faculty
+        if hasattr(slot, 'max_orders'):
+            slot.max_orders = max(1, slot.max_orders // 2)
+
+
 def _apply_capacity_rules(slot: Slot, user_id: int, db: Session) -> int:
     """Return the effective max_orders after applying any active capacity rules for this user.
 
@@ -240,6 +280,9 @@ def _book_slot_internal(slot_id: int, user_id: int, db: Session, commit: bool, o
 
         if slot.is_locked:
             raise HTTPException(status_code=423, detail="Slot is currently locked by vendor")
+
+        # Check calendar event restrictions (holiday/exam day)
+        _check_calendar_event_restrictions(slot, user_id, db)
 
         # Apply capacity rules to determine effective max_orders
         # _apply_capacity_rules looks up the user's role from the User table internally
@@ -313,6 +356,25 @@ def cancel_slot_booking(booking_id: int, user_id: int, db: Session):
 
     slot.current_orders = max(0, slot.current_orders - 1)
     _update_slot_status(slot)
+
+    # Send SMS notification for slot cancellation (urgent event)
+    try:
+        from app.modules.notifications.model import NotificationType
+        from app.modules.notifications.service import notify_user
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            notify_user(
+                user_id=user_id,
+                phone=user.phone,
+                title="Slot Booking Cancelled",
+                message=f"Your slot booking (ID: {booking_id}) on {slot.start_time.strftime('%b %d at %I:%M %p')} has been cancelled.",
+                db=db,
+                send_sms_flag=True,
+                notification_type=NotificationType.ALERT,
+                reference_id=booking_id,
+            )
+    except Exception:
+        pass
 
     db.commit()
     db.refresh(slot)

@@ -1,6 +1,7 @@
+import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -18,6 +19,8 @@ from app.modules.orders.model import Order, OrderStatus
 from app.modules.payments.model import Payment, PaymentStatus
 from app.modules.users.model import User, UserRole
 
+logger = logging.getLogger("tnt.admin.broadcasts")
+
 from app.modules.admin.service import list_users, get_user_by_id, set_user_active
 from app.modules.admin.schemas import (
     AdminUserListResponse,
@@ -29,6 +32,8 @@ from app.modules.admin.conflict_schemas import ConflictSummaryResponse
 from app.modules.admin import export_service
 from app.modules.auditlog import service as audit_service
 from app.modules.auditlog.service import AuditAction, AuditCategory
+from app.modules.admin.broadcast_schemas import BroadcastCreate, BroadcastListResponse
+from app.modules.notifications.model import NotificationType
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -217,6 +222,7 @@ def emergency_shutdown(
 @router.post("/orders/{order_id}/fraud")
 def mark_order_fraud(
     order_id: int,
+    reason: Optional[str] = Query(None, description="Optional fraud reason"),
     db: Session = Depends(get_db),
     user=Depends(require_role("admin"))
 ) -> dict[str, Any]:
@@ -229,6 +235,8 @@ def mark_order_fraud(
 
     order.fraud_flag = True
     order.flagged_at = utcnow_naive()
+    if reason:
+        order.fraud_reason = reason
     db.commit()
     db.refresh(order)
 
@@ -252,6 +260,7 @@ def mark_order_fraud(
         "message": "Order marked as fraud",
         "order_id": order.id,
         "flagged_at": order.flagged_at.isoformat(),
+        "fraud_reason": order.fraud_reason,
     }
 
 
@@ -650,3 +659,163 @@ def send_global_announcement(
         db.rollback()
 
     return {"message": "Announcement sent to all users"}
+
+
+# ── Broadcast (persistent fan-out) endpoints ──────────────────────────────
+
+
+@router.post("/broadcasts", summary="Send broadcast with persistent history")
+def create_broadcast(
+    payload: BroadcastCreate = Body(...),
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+) -> dict[str, Any]:
+    """Fan out a message to push notifications for a target audience.
+
+    - ``severity=critical`` also triggers SMS fallback for every recipient.
+    - The broadcast record is persisted so the sent list is real data.
+    - ``audience`` filters: ``all`` (all active users), ``faculty`` (role=faculty),
+      ``vendor_customers`` (users who have ordered from a specific vendor).
+    """
+    from app.modules.notifications.service import notify_user
+
+    # ── Resolve target users ──────────────────────────────────────────
+    q = db.query(User).filter(User.is_active == True)
+
+    if payload.audience == "faculty":
+        q = q.filter(User.role == UserRole.FACULTY)
+    elif payload.audience == "vendor_customers":
+        if not payload.vendor_id:
+            raise HTTPException(status_code=400, detail="vendor_id is required for audience=vendor_customers")
+        # Users who have placed at least one order with this vendor
+        subq = (
+            db.query(Order.user_id)
+            .filter(Order.vendor_id == payload.vendor_id)
+            .distinct()
+            .subquery()
+        )
+        q = q.filter(User.id.in_(db.query(subq.c.user_id)))
+
+    target_users = q.all()
+
+    # ── Send notifications ────────────────────────────────────────────
+    send_sms = payload.severity == "critical"
+    sent_count = 0
+    for u in target_users:
+        try:
+            notify_user(
+                user_id=u.id,
+                phone=u.phone,
+                title=payload.title,
+                message=payload.message,
+                db=db,
+                send_sms_flag=send_sms,
+                notification_type=NotificationType.SYSTEM,
+            )
+            sent_count += 1
+        except Exception:
+            logger.exception("broadcast_notify_failed user_id=%s", u.id)
+
+    # ── Persist broadcast record ───────────────────────────────────────
+    from app.modules.admin.broadcast_model import Broadcast as BroadcastModel
+
+    record = BroadcastModel(
+        title=payload.title,
+        message=payload.message,
+        severity=payload.severity,
+        audience=payload.audience,
+        vendor_id=payload.vendor_id,
+        sent_count=sent_count,
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+
+    # ── Audit log ──────────────────────────────────────────────────────
+    try:
+        audit_service.write(
+            db=db,
+            action=AuditAction.ANNOUNCEMENT_SENT,
+            action_category=AuditCategory.ANNOUNCEMENT,
+            actor_id=user.get("id"),
+            actor_role=user.get("role"),
+            entity_type="Broadcast",
+            entity_id=str(record.id),
+            metadata={
+                "title": payload.title,
+                "severity": payload.severity,
+                "audience": payload.audience,
+                "recipient_count": sent_count,
+            },
+        )
+    except Exception:
+        pass
+
+    return {
+        "message": "Broadcast sent",
+        "broadcast_id": record.id,
+        "sent_count": sent_count,
+        "severity": payload.severity,
+    }
+
+
+@router.get("/broadcasts", response_model=BroadcastListResponse)
+def list_broadcasts(
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
+    """Return real broadcast history, newest first."""
+    from app.modules.admin.broadcast_model import Broadcast as BroadcastModel
+
+    total = db.query(func.count(BroadcastModel.id)).scalar() or 0
+    rows = (
+        db.query(BroadcastModel)
+        .order_by(BroadcastModel.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return BroadcastListResponse(broadcasts=rows, total=total)
+
+
+# ── Backup & Restore ─────────────────────────────────────────────────────
+
+
+@router.post("/backup", summary="Trigger a database backup")
+def trigger_backup(
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
+    """Run pg_dump as a background task and return the resulting file metadata.
+
+    The backup is saved to ``backups/tnt_backup_<timestamp>.dump``.
+    """
+    from app.modules.admin.backup_service import run_backup
+
+    try:
+        result = run_backup()
+        return {
+            "message": "Backup completed",
+            "backup": result,
+        }
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=500,
+            detail="pg_dump not found on PATH. Ensure PostgreSQL client tools are installed.",
+        )
+
+
+@router.get("/backups", summary="List all database backup files")
+def list_backups(
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
+    """Return metadata for every backup file in the backups directory."""
+    from app.modules.admin.backup_service import list_backups
+
+    files = list_backups()
+    return {"backups": files, "total": len(files)}

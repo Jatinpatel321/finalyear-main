@@ -54,9 +54,22 @@ export const adminApi = {
   toggleShutdown: (enabled: boolean = true) =>
     api.post('/v1/admin/shutdown', null, { params: { enabled } }),
 
-  // Announcements
+  // Announcements — legacy
   sendAnnouncement: (_title: string, message: string) =>
     api.post('/v1/admin/announce', null, { params: { message } }),
+
+  // Broadcasts — persistent, with severity & audience
+  getBroadcasts: (params?: { limit?: number; offset?: number }) =>
+    api.get('/v1/admin/broadcasts', { params }),
+
+  sendBroadcast: (payload: {
+    title: string;
+    message: string;
+    severity: string;
+    audience: string;
+    vendor_id?: number | null;
+  }) =>
+    api.post('/v1/admin/broadcasts', payload),
 
   // Policies
   getFacultyPolicy: () =>
@@ -104,6 +117,13 @@ export const adminApi = {
   getConflicts: () =>
     api.get('/v1/admin/conflicts'),
 
+  // Backup & Restore
+  getBackups: () =>
+    api.get('/v1/admin/backups'),
+
+  triggerBackup: () =>
+    api.post('/v1/admin/backup'),
+
   // Export endpoints
   exportOrders: (params?: { date_from?: string; date_to?: string; status?: string }) =>
     api.get('/v1/admin/export/orders', { params, responseType: 'blob' }),
@@ -119,4 +139,23 @@ export const adminApi = {
 
   exportRevenue: (params?: { date_from?: string; date_to?: string }) =>
     api.get('/v1/admin/export/revenue', { params, responseType: 'blob' }),
+
+  // Holiday & Exam Calendar
+  getCalendarEvents: (params?: { year?: number; month?: number; event_type?: string }) =>
+    api.get('/v1/admin/calendar-events/', { params }),
+
+  createCalendarEvent: (payload: {
+    event_date: string;
+    label: string;
+    event_type: string;
+    affects_ordering?: boolean;
+    description?: string | null;
+  }) =>
+    api.post('/v1/admin/calendar-events/', payload),
+
+  deleteCalendarEvent: (id: number) =>
+    api.delete(`/v1/admin/calendar-events/${id}`),
+
+  checkCalendarDate: (event_date: string) =>
+    api.get('/v1/admin/calendar-events/check-date', { params: { event_date } }),
 };

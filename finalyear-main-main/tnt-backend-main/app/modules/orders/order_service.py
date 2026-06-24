@@ -127,6 +127,7 @@ def place_order(
         title="Order Placed",
         message=f"Your order #{order.id} has been placed successfully. ETA: {eta_minutes} minutes.",
         db=db,
+        send_sms_flag=False,
         notification_type=NotificationType.ORDER_PLACED,
         reference_id=order.id,
     )
@@ -180,6 +181,29 @@ def get_my_orders(user: dict, db: Session) -> list[dict]:
             if eta_time and utcnow_naive() > eta_time:
                 is_delayed = True
 
+        # Fetch stationery jobs for combined orders
+        stationery_jobs = None
+        if order.booking_type == "combined":
+            from app.modules.stationery.job_model import StationeryJob
+            sj_rows = (
+                db.query(StationeryJob)
+                .filter(
+                    StationeryJob.user_id == order.user_id,
+                    StationeryJob.vendor_id == order.vendor_id,
+                )
+                .all()
+            )
+            stationery_jobs = [
+                {
+                    "id": sj.id,
+                    "service_id": sj.service_id,
+                    "quantity": sj.quantity,
+                    "amount": sj.amount or 0,
+                    "status": sj.status.value if hasattr(sj.status, "value") else str(sj.status),
+                }
+                for sj in sj_rows
+            ]
+
         result.append({
             "id": order.id,
             "user_id": order.user_id,
@@ -193,6 +217,8 @@ def get_my_orders(user: dict, db: Session) -> list[dict]:
             "items": items,
             "eta_minutes": order.eta_minutes,
             "is_delayed": is_delayed,
+            "booking_type": order.booking_type or "food",
+            "stationery_jobs": stationery_jobs,
         })
     return result
 
@@ -211,6 +237,7 @@ def cancel_order(user: dict, order_id: int, db: Session) -> dict:
         title="Order Cancelled",
         message=f"Your order #{order.id} has been cancelled.",
         db=db,
+        send_sms_flag=True,
         notification_type=NotificationType.ORDER_CANCELLED,
         reference_id=order.id,
     )
@@ -286,6 +313,7 @@ def confirm_order(user: dict, order_id: int, db: Session) -> dict:
         title="Order Confirmed",
         message=f"Your order #{order.id} has been confirmed.",
         db=db,
+        send_sms_flag=False,
         notification_type=NotificationType.ORDER_ACCEPTED,
         reference_id=order.id,
     )
@@ -307,6 +335,7 @@ def mark_order_preparing(user: dict, order_id: int, db: Session) -> dict:
         title="Order Preparing",
         message=f"Your order #{order.id} is being prepared.",
         db=db,
+        send_sms_flag=False,
         notification_type=NotificationType.ORDER_PREPARING,
         reference_id=order.id,
     )
@@ -328,6 +357,7 @@ def mark_order_ready(user: dict, order_id: int, db: Session) -> dict:
         title="Order Ready",
         message=f"Your order #{order.id} is ready for pickup!",
         db=db,
+        send_sms_flag=True,
         notification_type=NotificationType.ORDER_READY,
         reference_id=order.id,
     )

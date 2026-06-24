@@ -37,19 +37,50 @@ try:
     from sklearn.preprocessing import StandardScaler
     _RF_AVAILABLE = True
 except ImportError:
-    logger.warning("scikit-learn not available")
+    _RF_AVAILABLE = False
 
 try:
     import xgboost as xgb
     _XGB_AVAILABLE = True
 except ImportError:
-    logger.warning("XGBoost not available")
+    _XGB_AVAILABLE = False
 
 try:
     import lightgbm as lgb
     _LGBM_AVAILABLE = True
 except ImportError:
-    logger.warning("LightGBM not available")
+    _LGBM_AVAILABLE = False
+
+
+def _log_ml_dependency_warnings() -> None:
+    """Emit a loud WARNING at startup for any missing ML dependency.
+
+    Unlike the silent graceful-fallback pattern, this function ensures that
+    a missing library is clearly visible in the logs so operators are not
+    surprised by degraded model quality.
+    """
+    if not _RF_AVAILABLE:
+        logger.warning(
+            "*** scikit-learn is NOT available.  All sklearn-based models "
+            "(RandomForest, SVD, etc.) will be SKIPPED.  "
+            "Run: pip install 'scikit-learn>=1.5.0'"
+        )
+    if not _XGB_AVAILABLE:
+        logger.warning(
+            "*** XGBoost is NOT available.  XGBoost-based models will be "
+            "SKIPPED, reducing prediction accuracy.  "
+            "Run: pip install 'xgboost>=2.0.0'"
+        )
+    if not _LGBM_AVAILABLE:
+        logger.warning(
+            "*** LightGBM is NOT available.  LightGBM-based models will be "
+            "SKIPPED, reducing prediction accuracy.  "
+            "Run: pip install 'lightgbm>=4.0.0'"
+        )
+
+
+# Log dependency warnings at module import time so they appear during app startup.
+_log_ml_dependency_warnings()
 
 from app.ml.dataset_builder import DatasetBuilder
 from app.ml.registry import ModelRegistry

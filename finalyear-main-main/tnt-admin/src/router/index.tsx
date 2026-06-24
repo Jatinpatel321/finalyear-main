@@ -19,10 +19,12 @@ const VoucherManager = lazy(() => import('../pages/rewards/VoucherManager'));
 const OffPeakPolicy = lazy(() => import('../pages/rewards/OffPeakPolicy'));
 const FacultyPolicy = lazy(() => import('../pages/policies/FacultyPolicy'));
 const UniversityPolicy = lazy(() => import('../pages/policies/UniversityPolicy'));
+const HolidayCalendar = lazy(() => import('../pages/calendar/HolidayCalendar'));
 const AIIntelligence = lazy(() => import('../pages/ai/AIIntelligence'));
 const StationeryJobs = lazy(() => import('../pages/stationery/StationeryJobs'));
 const Ledger = lazy(() => import('../pages/ledger/Ledger'));
 const Announcements = lazy(() => import('../pages/announcements/Announcements'));
+const BackupRecovery = lazy(() => import('../pages/backup/BackupRecovery'));
 const AuditLogs = lazy(() => import('../pages/audit/AuditLogs'));
 const ConflictResolution = lazy(() => import('../pages/conflicts/ConflictResolution'));
 const Settings = lazy(() => import('../pages/settings/Settings'));
@@ -136,6 +138,7 @@ const router = createBrowserRouter([
         children: [
           { index: true, element: <FacultyPolicy /> },
           { path: 'university', element: <UniversityPolicy /> },
+          { path: 'calendar', element: <HolidayCalendar /> },
         ],
       },
       { path: 'ai', element: <AIIntelligence /> },
@@ -144,6 +147,7 @@ const router = createBrowserRouter([
       { path: 'announcements', element: <Announcements /> },
       { path: 'audit-logs', element: <AuditLogs /> },
       { path: 'conflicts', element: <ConflictResolution /> },
+      { path: 'backup', element: <BackupRecovery /> },
       { path: 'settings', element: <Settings /> },
       { path: '*', element: <Navigate to="/dashboard" replace /> },
     ],

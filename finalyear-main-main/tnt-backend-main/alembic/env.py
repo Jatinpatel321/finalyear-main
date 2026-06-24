@@ -12,7 +12,9 @@ import app.modules.group_cart.model  # noqa: F401
 import app.modules.ledger.model  # noqa: F401
 import app.modules.menu.model  # noqa: F401
 import app.modules.notifications.model  # noqa: F401
+import app.modules.admin.broadcast_model  # noqa: F401
 import app.modules.admin.model  # noqa: F401
+import app.modules.calendar.model  # noqa: F401
 import app.modules.orders.history_model  # noqa: F401
 import app.modules.orders.model  # noqa: F401
 import app.modules.payments.model  # noqa: F401

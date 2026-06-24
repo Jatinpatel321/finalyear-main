@@ -15,6 +15,7 @@ class NotificationType(enum.Enum):
     ORDER_CANCELLED = "order_cancelled"
     ORDER_PLACED = "order_placed"
     PROMO = "promo"
+    ALERT = "alert"
     SYSTEM = "system"
 
 

@@ -239,6 +239,29 @@ def orders_by_user_id(
                 "price_at_time": oi.price_at_time,
             })
 
+        # Fetch stationery jobs linked to this order (for combined bookings)
+        stationery_jobs = []
+        if order.booking_type == "combined":
+            from app.modules.stationery.job_model import StationeryJob
+            sj_rows = (
+                db.query(StationeryJob)
+                .filter(
+                    StationeryJob.user_id == order.user_id,
+                    StationeryJob.vendor_id == order.vendor_id,
+                )
+                .all()
+            )
+            stationery_jobs = [
+                {
+                    "id": sj.id,
+                    "service_id": sj.service_id,
+                    "quantity": sj.quantity,
+                    "amount": sj.amount or 0,
+                    "status": sj.status.value if hasattr(sj.status, "value") else str(sj.status),
+                }
+                for sj in sj_rows
+            ]
+
         status_val = order.status.value if hasattr(order.status, "value") else str(order.status)
         result.append(OrderResponse(
             id=order.id,
@@ -251,6 +274,8 @@ def orders_by_user_id(
             total_amount=order.total_amount,
             qr_code=order.qr_code,
             items=items,
+            booking_type=order.booking_type or "food",
+            stationery_jobs=stationery_jobs if stationery_jobs else None,
         ))
 
     return result

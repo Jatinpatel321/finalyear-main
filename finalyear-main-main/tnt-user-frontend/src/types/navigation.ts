@@ -36,7 +36,7 @@ export type RootStackParamList = {
   };
   Cart: undefined;
   Checkout: { vendorId: number };
-  SlotSelection: { vendorId: number };
+  SlotSelection: { vendorId: number; stationeryItems?: { service_id: number; quantity: number; file_url?: string | null }[] };
   OrderTracking: { orderId: number };
   QR: { qrCode: string; orderId: number };
   Feedback: { orderId: number; vendorName?: string | null };

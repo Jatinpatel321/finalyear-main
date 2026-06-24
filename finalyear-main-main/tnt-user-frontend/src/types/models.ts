@@ -98,6 +98,15 @@ export type OrderStatusKey =
   | 'completed'
   | 'cancelled';
 
+// Stationery job summary embedded in a combined order
+export type StationeryJobSummary = {
+  id: number;
+  service_id: number;
+  quantity: number;
+  amount: number;
+  status: string;
+};
+
 export type Order = {
   id: number;
   user_id?: number;
@@ -111,6 +120,8 @@ export type Order = {
   items?: OrderItem[];
   eta_minutes?: number | null;
   is_delayed?: boolean | null;
+  booking_type?: string; // 'food' | 'stationery' | 'combined'
+  stationery_jobs?: StationeryJobSummary[] | null;
 };
 
 export type OrderHistoryItem = {

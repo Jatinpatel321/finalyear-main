@@ -43,6 +43,31 @@ jobs:
       - name: Ruff import check
         run: ruff check . --select I
 
+      - name: Verify ML dependencies import correctly
+        run: |
+          python -c "
+          errors = []
+          try:
+            from sklearn.ensemble import RandomForestRegressor
+          except ImportError as e:
+            errors.append(f'scikit-learn: {e}')
+          try:
+            import xgboost
+          except ImportError as e:
+            errors.append(f'xgboost: {e}')
+          try:
+            import lightgbm
+          except ImportError as e:
+            errors.append(f'lightgbm: {e}')
+          if errors:
+            import sys
+            print('::error ::ML dependency import failure(s):')
+            for err in errors:
+              print(f'::error ::  {err}')
+            sys.exit(1)
+          print('All ML dependencies import OK')
+          "
+
       - name: Start API server
         run: |
           nohup python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > uvicorn.log 2>&1 &

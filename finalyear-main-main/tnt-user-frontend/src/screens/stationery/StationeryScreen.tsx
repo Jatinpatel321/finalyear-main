@@ -32,7 +32,8 @@ export function StationeryScreen({ navigation, route }: Props) {
   const onSubmit = async () => {
     try {
       setSubmitting(true);
-      await submitStationeryJob({
+      // Submit the stationery job first (creates a job record)
+      const job = await submitStationeryJob({
         serviceId: vendorId,
         quantity: options.copies,
         fileUri: file.uri,
@@ -40,8 +41,23 @@ export function StationeryScreen({ navigation, route }: Props) {
         mimeType: file.mimeType ?? 'application/octet-stream',
       });
 
+      // Navigate to SlotSelection with stationery items so the user can
+      // optionally combine with food items for a single pickup.
       Alert.alert('Job submitted', 'Next, pick a slot for pickup.', [
-        { text: 'Choose Slot', onPress: () => navigation.navigate('SlotSelection', { vendorId }) },
+        {
+          text: 'Choose Slot',
+          onPress: () =>
+            navigation.navigate('SlotSelection', {
+              vendorId,
+              stationeryItems: [
+                {
+                  service_id: vendorId,
+                  quantity: options.copies,
+                  file_url: job.file_url,
+                },
+              ],
+            }),
+        },
       ]);
     } catch (e) {
       Alert.alert('Submit failed', toApiError(e).message);

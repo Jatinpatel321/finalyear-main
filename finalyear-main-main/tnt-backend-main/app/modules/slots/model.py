@@ -40,6 +40,12 @@ class Slot(Base):
     bookings = relationship("SlotBooking", back_populates="slot", cascade="all, delete-orphan")
 
 
+class BookingType(enum.Enum):
+    FOOD = "food"
+    STATIONERY = "stationery"
+    COMBINED = "combined"
+
+
 class BookingStatus(enum.Enum):
     CONFIRMED = "confirmed"
     CANCELLED = "cancelled"
@@ -52,6 +58,7 @@ class SlotBooking(Base):
     slot_id = Column(Integer, ForeignKey("slots.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     order_id = Column(Integer, ForeignKey("orders.id"), nullable=True)
+    booking_type = Column(Enum(BookingType), default=BookingType.FOOD, nullable=False)
     status = Column(Enum(BookingStatus), default=BookingStatus.CONFIRMED)
     booked_at = Column(DateTime, default=utcnow_naive)
     cancelled_at = Column(DateTime, nullable=True)
@@ -86,4 +93,3 @@ class SlotRule(Base):
     priority = Column(Integer, default=0)
     created_at = Column(DateTime, default=utcnow_naive)
     updated_at = Column(DateTime, default=utcnow_naive, onupdate=utcnow_naive)
-

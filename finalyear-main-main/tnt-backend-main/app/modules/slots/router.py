@@ -53,6 +53,11 @@ from app.modules.slots.service import (
     update_slot,
     delete_slot,
 )
+from app.modules.slots.schemas import (
+    CombinedBookingRequest,
+    CombinedBookingResponse,
+)
+from app.modules.slots.combined_service import create_combined_booking
 from app.modules.stationery.service_model import StationeryService
 from app.modules.users.model import User
 
@@ -504,3 +509,63 @@ def delete_rule(
 
     delete_slot_rule(rule_id, db_user.id, db)
     return {"message": "Rule deleted successfully"}
+
+
+# ── Combined Booking Endpoint ──────────────────────────────────────────────
+
+
+@router.post(
+    "/combined-booking",
+    response_model=CombinedBookingResponse,
+    summary="Book food + stationery together against the same slot window",
+)
+def combined_booking(
+    payload: CombinedBookingRequest,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Accept a food order AND a stationery job payload and book both against
+    the SAME slot window.  Validates capacity for both sub-orders before
+    committing, then returns a single order that covers both.
+
+    Existing independent food-only and stationery-only flows remain untouched.
+    """
+    db_user = db.query(User).filter(User.phone == user["phone"]).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # At least one of food or stationery must be present
+    if not payload.food_items and not payload.stationery_items:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide at least one food item or one stationery item",
+        )
+
+    # Faculty priority check
+    slot = db.query(Slot).filter(Slot.id == payload.slot_id).first()
+    if not slot:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    role = (db_user.role.value or "").lower()
+    if is_slot_in_faculty_priority_window(slot.start_time.hour) and role not in {"faculty", "admin", "super_admin"}:
+        raise HTTPException(status_code=403, detail="This slot is reserved for faculty during priority window")
+
+    # Build dict payloads for the service layer
+    food_items = [{"menu_item_id": fi.menu_item_id, "quantity": fi.quantity} for fi in payload.food_items]
+    stationery_items = [
+        {
+            "service_id": si.service_id,
+            "quantity": si.quantity,
+            "file_url": si.file_url,
+        }
+        for si in payload.stationery_items
+    ]
+
+    result = create_combined_booking(
+        user_id=db_user.id,
+        slot_id=payload.slot_id,
+        food_items=food_items,
+        stationery_items=stationery_items,
+        db=db,
+    )
+
+    return CombinedBookingResponse(**result)

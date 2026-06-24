@@ -79,7 +79,12 @@ export default function OrdersHub() {
             {formatOrderId(row.original.id)}
           </span>
           {row.original.fraud_flag && (
-            <span className="badge bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">FRAUD</span>
+            <span
+              className="badge bg-red-500/20 text-red-400 border-red-500/30 text-[10px]"
+              title={row.original.fraud_reason || 'Flagged as fraud'}
+            >
+              FRAUD
+            </span>
           )}
         </div>
       ),

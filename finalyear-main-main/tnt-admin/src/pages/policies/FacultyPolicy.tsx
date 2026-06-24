@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, GraduationCap, Save, Plus, Trash2 } from 'lucide-react';
+import { Shield, GraduationCap, CalendarDays, Save, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '../../api/admin';
 import type { FacultyPriorityPolicy } from '../../types';
@@ -75,6 +75,12 @@ export default function FacultyPolicy() {
           onClick={() => navigate('/policies/university')}
         >
           <Shield className="w-3.5 h-3.5" /> University Policy
+        </button>
+        <button
+          className={`tab-btn ${location.pathname.includes('calendar') ? 'active' : ''}`}
+          onClick={() => navigate('/policies/calendar')}
+        >
+          <CalendarDays className="w-3.5 h-3.5" /> Calendar
         </button>
       </div>
 

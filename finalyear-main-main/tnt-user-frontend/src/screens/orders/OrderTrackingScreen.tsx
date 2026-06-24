@@ -273,6 +273,7 @@ export function OrderTrackingScreen({route, navigation}: Props) {
   }, [order, vendorMap]);
 
   const orderType = useMemo(() => {
+    if (order?.booking_type === 'combined') return 'combined' as const;
     if (order && vendorMap[order.vendor_id]) {
       return vendorMap[order.vendor_id].vendor_type === 'stationery'
         ? 'stationery'
@@ -461,7 +462,7 @@ export function OrderTrackingScreen({route, navigation}: Props) {
                   <View style={styles.detailRow}>
                     <Text style={styles.detailLabel}>Type</Text>
                     <Text style={styles.detailValue}>
-                      {orderType === 'stationery' ? 'Stationery' : 'Food'}
+                      {orderType === 'combined' ? 'Food + Stationery' : orderType === 'stationery' ? 'Stationery' : 'Food'}
                     </Text>
                   </View>
                   {totalRupees !== null && (
@@ -484,7 +485,7 @@ export function OrderTrackingScreen({route, navigation}: Props) {
 
                 {items.length > 0 && (
                   <View style={styles.card}>
-                    <Text style={styles.sectionTitle}>Items</Text>
+                    <Text style={styles.sectionTitle}>Food Items</Text>
                     {items.map((item, idx) => (
                       <View
                         key={`${item.name}-${idx}`}
@@ -500,6 +501,24 @@ export function OrderTrackingScreen({route, navigation}: Props) {
                         </Text>
                       </View>
                     ))}
+                  </View>
+                )}
+
+                {/* Stationery jobs — shown when this is a combined order */}
+                {order?.stationery_jobs && order.stationery_jobs.length > 0 && (
+                  <View style={styles.card}>
+                    <Text style={styles.sectionTitle}>Stationery Jobs</Text>
+                    {order.stationery_jobs.map((job, idx) => (
+                      <View key={`sj-${job.id}-${idx}`} style={styles.itemRow}>
+                        <Text style={styles.itemName}>Service #{job.service_id}</Text>
+                        <Text style={styles.itemMeta}>x{job.quantity}</Text>
+                        <Text style={styles.itemPrice}>₹{Number(job.amount).toFixed(2)}</Text>
+                      </View>
+                    ))}
+                    <View style={[styles.detailRow, {marginTop: 8}]}>
+                      <Text style={styles.detailLabel}>Status</Text>
+                      <Text style={styles.detailValue}>{order.stationery_jobs[0].status}</Text>
+                    </View>
                   </View>
                 )}
 

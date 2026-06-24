@@ -25,6 +25,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.modules.admin.router import router as admin_router
+from app.modules.calendar.router import router as calendar_router
 from app.modules.auditlog.router import router as audit_log_router
 from app.modules.ai_intelligence.router import router as ai_router
 from app.modules.auth.router import router as auth_router
@@ -75,6 +76,7 @@ api_v1_router.include_router(orders_router)
 api_v1_router.include_router(payments_router)
 api_v1_router.include_router(razorpay_webhook_router)
 api_v1_router.include_router(admin_router)
+api_v1_router.include_router(calendar_router)
 api_v1_router.include_router(audit_log_router)
 api_v1_router.include_router(stationery_router)
 api_v1_router.include_router(stationery_payment_router)

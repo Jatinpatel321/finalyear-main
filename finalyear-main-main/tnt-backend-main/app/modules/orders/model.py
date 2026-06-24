@@ -43,9 +43,15 @@ class Order(Base):
     actual_completion_minutes = Column(Integer, nullable=True)
 
     # Fraud fields
-    # Strict schema column — no hasattr guards needed anywhere in the codebase.
     fraud_flag = Column(Boolean, nullable=False, default=False, server_default="0")
     flagged_at = Column(DateTime, nullable=True)  # set when fraud_flag flips to True
+    fraud_reason = Column(String(500), nullable=True)  # human-readable reason from auto-detection
+
+    # Combined booking: link to a stationery job when this order is part of a combined booking
+    stationery_job_id = Column(Integer, ForeignKey("stationery_jobs.id"), nullable=True)
+
+    # Booking type discriminator: food / stationery / combined
+    booking_type = Column(String(20), nullable=False, server_default="food")
 
 
 class OrderItem(Base):

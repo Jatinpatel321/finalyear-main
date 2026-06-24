@@ -78,3 +78,33 @@ export async function recommendSlot(vendorId: number): Promise<{ recommended_slo
   const res = await apiClient.get(`/slots/recommend/${vendorId}`);
   return res.data as any;
 }
+
+export type CombinedStationeryItem = {
+  service_id: number;
+  quantity: number;
+  file_url?: string | null;
+};
+
+export type CombinedFoodItem = {
+  menu_item_id: number;
+  quantity: number;
+};
+
+export type CombinedBookingResponse = {
+  message: string;
+  order_id: number;
+  stationery_job_ids: number[];
+  slot_id: number;
+  booking_id: number;
+  total_amount: number;
+  status: string;
+};
+
+export async function combinedBooking(payload: {
+  slot_id: number;
+  food_items: CombinedFoodItem[];
+  stationery_items: CombinedStationeryItem[];
+}): Promise<CombinedBookingResponse> {
+  const res = await apiClient.post('/slots/combined-booking', payload);
+  return res.data as CombinedBookingResponse;
+}
